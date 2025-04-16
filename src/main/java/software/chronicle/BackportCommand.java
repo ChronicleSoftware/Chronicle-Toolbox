@@ -6,10 +6,8 @@ import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.RefSpec;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import picocli.CommandLine;
 import jakarta.inject.Singleton;
 import org.jboss.logging.Logger;
@@ -80,10 +78,10 @@ public class BackportCommand implements Runnable {
     public void run() {
         LOGGER.info("Starting the backport process.");
         try {
-            // Initialize Git repository from the current directory
-            Repository repo = initialiseRepository();
+            // Loads the Git repository from the current directory
+            Repository repo = loadCurrentRepository();
             Git git = new Git(repo);
-            LOGGER.info("Repository initialized successfully.");
+            LOGGER.info("Repository loaded successfully.");
 
             // Determine which commits to backport. If no commit hashes are provided, use the latest commit.
             if (commitHashes == null || commitHashes.isEmpty()) {
@@ -145,7 +143,7 @@ public class BackportCommand implements Runnable {
      * @return the initialized Repository
      * @throws IOException if the repository cannot be found or read
      */
-    private Repository initialiseRepository() throws IOException {
+    private Repository loadCurrentRepository() throws IOException {
         LOGGER.debug("Initializing repository using FileRepositoryBuilder.");
         return new FileRepositoryBuilder()
                 .setWorkTree(new File(System.getProperty("user.dir")))
@@ -208,12 +206,17 @@ public class BackportCommand implements Runnable {
      * @throws GitAPIException if the push operation fails
      */
     private void pushBranch(Git git, String branchName) throws GitAPIException {
-        LOGGER.debugf("Pushing branch %s to remote 'origin'.", branchName);
-        git.push()
-                .setRemote("origin")
-                .setRefSpecs(new RefSpec("refs/heads/" + branchName + ":refs/heads/" + branchName))
-                .call();
-        System.out.println("Push successful for branch: " + branchName);
+        try {
+            LOGGER.debugf("Pushing branch %s to remote 'origin'.", branchName);
+            git.push()
+                    .setRemote("origin")
+                    .setRefSpecs(new RefSpec("refs/heads/" + branchName + ":refs/heads/" + branchName))
+                    .call();
+            System.out.println("Push successful for branch: " + branchName);
+        } catch (GitAPIException e) {
+            LOGGER.errorf("Failed to push branch %s to remote 'origin'.", branchName);
+            throw e;
+        }
     }
 
     /**
