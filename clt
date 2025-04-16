@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Resolve the absolute path to the script, even if symlinked
+SCRIPT_PATH="$(readlink -f "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+# Path to the JAR relative to the script's location
+JAR_PATH="$SCRIPT_DIR/target/quarkus-app/quarkus-run.jar"
+
+# Run the jar with all passed arguments
+java -jar "$JAR_PATH" "$@"
