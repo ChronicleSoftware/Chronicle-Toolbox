@@ -23,14 +23,12 @@ import java.util.Set;
  * commits from a source branch into a target branch, effectively backporting bugfixes.
  *
  * <p>The command accepts a source branch, target branch, commit hashes to backport,
- * and optionally a backport branch name. If no commit hashes are provided, the latest commit
- * on the source branch is used. The tool creates a new branch from the target branch,
- * cherry-picks the commits, and pushes the new branch to the remote repository.
+ * and optionally a backport branch name. If no commit hashes are provided, the tool
+ * will default to the latest commit on the source branch. The tool then creates a new
+ * branch from the target branch and cherry-picks the commit(s).
  *
- * <p>Usage:
- * <pre>
- *   java -jar target/quarkus-app/quarkus-run.jar backport -source develop -target release/2.24 -commit abc123,def456
- * </pre>
+ * <p><b>Note:</b> This tool only performs local Git operations. It does <i>not</i> push the new
+ * branch to any remote repository. That is left to the user.
  *
  * <p>This tool uses JGit for interacting with Git repositories and Picocli for command-line parsing.
  */
@@ -128,9 +126,11 @@ public class BackportCommand implements Runnable {
                 }
             }
 
-            LOGGER.info("All commits cherry-picked successfully. Pushing the backport branch to the remote repository...");
-            pushBranch(git, backportBranchName);
-            LOGGER.infof("Push successful for branch: %s", backportBranchName);
+            // The backport has been applied locally.
+            LOGGER.infof("Backport process complete. The branch '%s' has been created locally.", backportBranchName);
+            LOGGER.info("Please push your new branch manually using your preferred Git workflow, e.g.:");
+            LOGGER.infof("    git push <remote> %s", backportBranchName);
+
         } catch (IOException | GitAPIException e) {
             LOGGER.error("An error occurred during the backport process.", e);
             throw new RuntimeException("Backport process failed.", e);
@@ -196,27 +196,6 @@ public class BackportCommand implements Runnable {
     private void createBackportBranch(Git git, String branchName) throws GitAPIException {
         LOGGER.debugf("Creating new backport branch: %s", branchName);
         git.checkout().setCreateBranch(true).setName(branchName).call();
-    }
-
-    /**
-     * Pushes the newly created backport branch to the remote repository.
-     *
-     * @param git        the Git object
-     * @param branchName the name of the branch to push
-     * @throws GitAPIException if the push operation fails
-     */
-    private void pushBranch(Git git, String branchName) throws GitAPIException {
-        try {
-            LOGGER.debugf("Pushing branch %s to remote 'origin'.", branchName);
-            git.push()
-                    .setRemote("origin")
-                    .setRefSpecs(new RefSpec("refs/heads/" + branchName + ":refs/heads/" + branchName))
-                    .call();
-            System.out.println("Push successful for branch: " + branchName);
-        } catch (GitAPIException e) {
-            LOGGER.errorf("Failed to push branch %s to remote 'origin'.", branchName);
-            throw e;
-        }
     }
 
     /**
