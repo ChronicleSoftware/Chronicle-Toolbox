@@ -46,26 +46,26 @@ public class BackportCommand implements Runnable {
     /**
      * The source branch from which the commits originate (e.g., 'develop' or 'release/2.26').
      */
-    @CommandLine.Option(names = "-source", description = "The source branch", required = true)
+    @CommandLine.Option(names = {"-s", "-source"}, description = "The source branch", required = true)
     String sourceBranch;
 
     /**
      * The target branch into which the commits will be applied (e.g., 'release/2.24').
      */
-    @CommandLine.Option(names = "-target", description = "The target branch", required = true)
+    @CommandLine.Option(names = {"-t", "-target"}, description = "The target branch", required = true)
     String targetBranch;
 
     /**
      * The name for the new backport branch (if not supplied, a default will be auto-generated).
      */
-    @CommandLine.Option(names = "-name", description = "Name of the new backport branch")
+    @CommandLine.Option(names = {"-n", "-name"}, description = "Name of the new backport branch")
     String backportBranchName;
 
     /**
      * Comma-separated list of commit hashes to backport.
      * If not supplied, the tool will default to the latest commit from the source branch.
      */
-    @CommandLine.Option(names = "-commit", description = "Comma-separated commit hash(es) to backport", split = ",")
+    @CommandLine.Option(names = {"-c", "-commit"}, description = "Comma-separated commit hash(es) to backport", split = ",")
     List<String> commitHashes;
 
     /**

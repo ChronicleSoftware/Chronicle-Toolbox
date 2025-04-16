@@ -11,6 +11,9 @@ import picocli.CommandLine;
 
 public class CreateVerBranchCommand implements Runnable {
 
+    @CommandLine.Option(names = {"-s", "--source"}, description = "Source branch to create the version branch from.", required = true)
+    String sourceBranch;
+
     @Override
     public void run() {
 
