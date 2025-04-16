@@ -12,6 +12,7 @@ import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import picocli.CommandLine;
 import jakarta.inject.Singleton;
+import org.jboss.logging.Logger;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,8 +20,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-// Starting it all looks like this  java -jar target/quarkus-app/quarkus-run.jar <name of subcommand> <options>
-// here is the name of the subcommand
+/**
+ * BackportCommand is a command-line tool that automates the process of cherry-picking
+ * commits from a source branch into a target branch, effectively backporting bugfixes.
+ *
+ * <p>The command accepts a source branch, target branch, commit hashes to backport,
+ * and optionally a backport branch name. If no commit hashes are provided, the latest commit
+ * on the source branch is used. The tool creates a new branch from the target branch,
+ * cherry-picks the commits, and pushes the new branch to the remote repository.
+ *
+ * <p>Usage:
+ * <pre>
+ *   java -jar target/quarkus-app/quarkus-run.jar backport -source develop -target release/2.24 -commit abc123,def456
+ * </pre>
+ *
+ * <p>This tool uses JGit for interacting with Git repositories and Picocli for command-line parsing.
+ */
 @CommandLine.Command(
         name = "backport",
         aliases = {"bp"},
@@ -30,76 +45,108 @@ import java.util.Set;
 @Singleton
 public class BackportCommand implements Runnable {
 
-    // The source branch from which the commits originate (e.g., 'develop' or 'release/2.26')
+    private static final Logger LOGGER = Logger.getLogger(BackportCommand.class);
+
+    /**
+     * The source branch from which the commits originate (e.g., 'develop' or 'release/2.26').
+     */
     @CommandLine.Option(names = "-source", description = "The source branch", required = true)
     String sourceBranch;
 
-    // The target branch into which the commits will be applied (e.g., 'release/2.24')
+    /**
+     * The target branch into which the commits will be applied (e.g., 'release/2.24').
+     */
     @CommandLine.Option(names = "-target", description = "The target branch", required = true)
     String targetBranch;
 
-    // The name for the new backport branch (if not supplied, a default will be auto-generated)
+    /**
+     * The name for the new backport branch (if not supplied, a default will be auto-generated).
+     */
     @CommandLine.Option(names = "-name", description = "Name of the new backport branch")
     String backportBranchName;
 
-    // Comma-separated list of commit hashes to backport.
-    // If not supplied, the tool will default to the latest commit from the source branch.
+    /**
+     * Comma-separated list of commit hashes to backport.
+     * If not supplied, the tool will default to the latest commit from the source branch.
+     */
     @CommandLine.Option(names = "-commit", description = "Comma-separated commit hash(es) to backport", split = ",")
     List<String> commitHashes;
 
+    /**
+     * Executes the backporting process by initializing the repository, checking out the appropriate
+     * branches, cherry-picking commits, and finally pushing the new backport branch to the remote.
+     */
     @Override
     public void run() {
+        LOGGER.info("Starting the backport process.");
         try {
-            // Initialize Git repository from current directory
+            // Initialize Git repository from the current directory
             Repository repo = initialiseRepository();
             Git git = new Git(repo);
+            LOGGER.info("Repository initialized successfully.");
 
-            // If no commit hashes are provided, default to the latest commit from the source branch.
+            // Determine which commits to backport. If no commit hashes are provided, use the latest commit.
             if (commitHashes == null || commitHashes.isEmpty()) {
                 String resolvedHash = resolveCommitHash(repo, sourceBranch);
                 commitHashes = new ArrayList<>();
                 commitHashes.add(resolvedHash);
+                LOGGER.infof("No commit hashes provided. Defaulting to latest commit: %s", resolvedHash);
+            } else {
+                LOGGER.infof("Commit hashes provided: %s", commitHashes.toString());
             }
 
-            // If no backport branch name is provided, create a default name.
+            // Generate a backport branch name if not provided
             if (backportBranchName == null || backportBranchName.isEmpty()) {
-                // For example, default to "feature/backport_release_2_24"
                 backportBranchName = "feature/backport_" + targetBranch.replace("/", "_");
+                LOGGER.infof("No backport branch name provided. Defaulting to: %s", backportBranchName);
+            } else {
+                LOGGER.infof("Using provided backport branch name: %s", backportBranchName);
             }
 
-            System.out.printf("Backporting commits %s from %s to %s on branch '%s'%n", commitHashes, sourceBranch, targetBranch, backportBranchName);
+            LOGGER.infof("Backporting commits %s from source branch '%s' to target branch '%s' on new branch '%s'.",
+                    commitHashes, sourceBranch, targetBranch, backportBranchName);
 
             // Checkout the target branch (assumes that branch is up-to-date locally)
             checkoutBranch(git, targetBranch);
+            LOGGER.infof("Checked out target branch: %s", targetBranch);
 
             // Create a new branch from the target branch for backporting.
             createBackportBranch(git, backportBranchName);
+            LOGGER.infof("Created new backport branch: %s", backportBranchName);
 
-            // Process each commit in order (oldest commit first).
+            // Process each commit (oldest commit first)
             for (String hash : commitHashes) {
-                System.out.printf("Cherry-picking commit %s%n", hash);
+                LOGGER.infof("Cherry-picking commit: %s", hash);
                 CherryPickResult result = git.cherryPick().include(repo.resolve(hash)).call();
                 if (result.getStatus() == CherryPickResult.CherryPickStatus.CONFLICTING) {
+                    LOGGER.errorf("Conflict detected while cherry-picking commit: %s", hash);
                     handleConflicts(git);
-                    // If a conflict occurs, exit early.
+                    // Exit early upon encountering a conflict
                     return;
                 } else if (result.getStatus() == CherryPickResult.CherryPickStatus.OK) {
-                    System.out.printf("Commit %s cherry-picked successfully%n", hash);
+                    LOGGER.infof("Successfully cherry-picked commit: %s", hash);
                 } else {
-                    System.out.println("Backport finished with status: " + result.getStatus());
+                    LOGGER.warnf("Cherry-pick finished with status: %s", result.getStatus());
                 }
             }
 
-            // All commits have been applied. Now push the new branch to the remote.
-            System.out.println("All commits cherry-picked. Pushing backport branch to remote...");
+            LOGGER.info("All commits cherry-picked successfully. Pushing the backport branch to the remote repository...");
             pushBranch(git, backportBranchName);
+            LOGGER.infof("Push successful for branch: %s", backportBranchName);
         } catch (IOException | GitAPIException e) {
-            throw new RuntimeException(e);
+            LOGGER.error("An error occurred during the backport process.", e);
+            throw new RuntimeException("Backport process failed.", e);
         }
     }
 
-    // Initializes the Repository by using the working directory and searching upward for .git.
+    /**
+     * Initializes the Git repository by locating the .git directory starting from the current working directory.
+     *
+     * @return the initialized Repository
+     * @throws IOException if the repository cannot be found or read
+     */
     private Repository initialiseRepository() throws IOException {
+        LOGGER.debug("Initializing repository using FileRepositoryBuilder.");
         return new FileRepositoryBuilder()
                 .setWorkTree(new File(System.getProperty("user.dir")))
                 .readEnvironment()
@@ -108,28 +155,60 @@ public class BackportCommand implements Runnable {
                 .build();
     }
 
-    // Resolves the commit hash from a branch (returns the latest commit on the specified branch).
+    /**
+     * Resolves and returns the latest commit hash from a given branch.
+     *
+     * @param repo   the Git Repository
+     * @param branch the branch name to resolve
+     * @return the latest commit hash as a String
+     * @throws IOException              if an error occurs during resolution
+     * @throws IllegalArgumentException if the branch does not exist
+     */
     private String resolveCommitHash(Repository repo, String branch) throws IOException {
+        LOGGER.debugf("Resolving latest commit hash for branch: %s", branch);
         ObjectId commitId = repo.resolve("refs/heads/" + branch);
         if (commitId == null) {
-            throw new IllegalArgumentException("Source branch not found: " + branch);
+            String errorMsg = "Source branch not found: " + branch;
+            LOGGER.error(errorMsg);
+            throw new IllegalArgumentException(errorMsg);
         }
+        LOGGER.debugf("Resolved commit hash: %s", commitId.getName());
         return commitId.getName();
     }
 
-    // Checks out an existing branch.
+    /**
+     * Checks out an existing branch.
+     *
+     * @param git        the Git object
+     * @param branchName the name of the branch to check out
+     * @throws GitAPIException if the checkout operation fails
+     */
     private void checkoutBranch(Git git, String branchName) throws GitAPIException {
+        LOGGER.debugf("Checking out branch: %s", branchName);
         git.checkout().setName(branchName).call();
     }
 
-    // Creates a new branch for backporting (from the current branch, which is the target branch).
+    /**
+     * Creates a new branch for backporting from the currently checked-out branch.
+     *
+     * @param git        the Git object
+     * @param branchName the new backport branch name to create
+     * @throws GitAPIException if branch creation fails
+     */
     private void createBackportBranch(Git git, String branchName) throws GitAPIException {
+        LOGGER.debugf("Creating new backport branch: %s", branchName);
         git.checkout().setCreateBranch(true).setName(branchName).call();
     }
 
-    // Handles the cherry-pick operation and its result.
+    /**
+     * Pushes the newly created backport branch to the remote repository.
+     *
+     * @param git        the Git object
+     * @param branchName the name of the branch to push
+     * @throws GitAPIException if the push operation fails
+     */
     private void pushBranch(Git git, String branchName) throws GitAPIException {
-        // Push the newly created branch to the remote named "origin"
+        LOGGER.debugf("Pushing branch %s to remote 'origin'.", branchName);
         git.push()
                 .setRemote("origin")
                 .setRefSpecs(new RefSpec("refs/heads/" + branchName + ":refs/heads/" + branchName))
@@ -137,16 +216,26 @@ public class BackportCommand implements Runnable {
         System.out.println("Push successful for branch: " + branchName);
     }
 
-    // Displays conflicts when they occur and instructs the user to resolve them manually.
+    /**
+     * Handles conflicts that occur during the cherry-pick process.
+     * Logs the conflicting files and instructs the user on how to resolve the conflicts manually.
+     *
+     * @param git the Git object
+     * @throws GitAPIException if retrieving the repository status fails
+     */
     private void handleConflicts(Git git) throws GitAPIException {
+        LOGGER.debug("Handling conflicts encountered during cherry-pick.");
         Status status = git.status().call();
         Set<String> conflictingFiles = status.getConflicting();
         if (!conflictingFiles.isEmpty()) {
-            System.out.println("❌ Conflicts detected in:");
+            LOGGER.error("❌ Conflicts detected in the following files:");
             for (String file : conflictingFiles) {
-                System.out.println("   🔥 " + file);
+                LOGGER.errorf("   🔥 %s", file);
             }
+        } else {
+            LOGGER.warn("A conflict occurred, but no conflicting files were reported.");
         }
+        // Provide manual conflict resolution instructions
         System.out.println("\n🔧 Merge conflict during cherry-pick.");
         System.out.println("Please resolve the conflict manually, then run:");
         System.out.println("    git add <file>");
