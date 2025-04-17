@@ -7,9 +7,9 @@ import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import picocli.CommandLine;
 import jakarta.inject.Singleton;
@@ -18,6 +18,7 @@ import org.jboss.logging.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * BackportCommand automates cherry-picking commits (and their dependencies) from a source branch
@@ -134,25 +135,39 @@ public class BackportCommand implements Runnable {
         return id.getName();
     }
 
-    private List<String> resolveDependencies(Repository repo, Git git, String commitHash) throws IOException, GitAPIException {
-        List<String> toApply = new ArrayList<>();
-        Deque<RevCommit> stack = new ArrayDeque<>();
-        RevCommit requested = git.getRepository().parseCommit(ObjectId.fromString(commitHash));
-        stack.push(requested);
-
-        while (!stack.isEmpty()) {
-            RevCommit current = stack.pop();
-            String currHash = current.getName();
-            if (isOnBranch(repo, targetBranch, currHash)) continue;
-
-            if (appliesCleanly(git, current)) {
-                toApply.add(currHash);
-            } else {
-                Collections.addAll(stack, current.getParents());
+    private List<String> resolveDependencies(Repository repo, Git git, String commitHash)
+            throws GitAPIException, IOException {
+        // 1) Build the full ancestry list, oldest-first:
+        List<RevCommit> ancestry = new ArrayList<>();
+        try (RevWalk walk = new RevWalk(repo)) {
+            ObjectId head = repo.resolve(commitHash);
+            ObjectId base = repo.resolve("refs/heads/" + targetBranch);
+            walk.markStart(walk.parseCommit(head));
+            walk.markUninteresting(walk.parseCommit(base));
+            for (RevCommit c : walk) {
+                ancestry.add(c);
             }
         }
-        // Reverse to pick oldest first
-        Collections.reverse(toApply);
+        // RevWalk emits newest-first; reverse to oldest-first:
+        Collections.reverse(ancestry);
+
+        LOGGER.debugf("Ancestry path for %s → %s: %s",
+                targetBranch, commitHash,
+                ancestry.stream().map(RevCommit::getName).collect(Collectors.toList()));
+
+        // 2) Now, cherry-pick them in order, but do a dry-run check if you like:
+        List<String> toApply = new ArrayList<>();
+        for (RevCommit c : ancestry) {
+            String hash = c.getName();
+            LOGGER.debugf("Checking commit %s", hash);
+            // Optionally dry-run to see if it fails:
+            boolean clean = appliesCleanly(git, c);
+            if (!clean) {
+                LOGGER.infof("  → %s didn’t apply cleanly, but will include (its parents are already in place).", hash);
+            }
+            toApply.add(hash);
+        }
+
         return toApply;
     }
 
@@ -169,14 +184,6 @@ public class BackportCommand implements Runnable {
         git.reset().setMode(ResetCommand.ResetType.HARD).setRef(head.getName()).call();
 
         return clean;
-    }
-
-    private boolean isOnBranch(Repository repo, String branch, String hash) throws IOException {
-        ObjectId targetId = repo.resolve("refs/heads/" + branch);
-        return repo.resolve(hash).equals(targetId) ||
-                repo.getRefDatabase().getRefsByPrefix(branch).stream()
-                        .map(Ref::getObjectId)
-                        .anyMatch(id -> id.getName().equals(hash));
     }
 
     private void checkoutBranch(Git git, String branchName) throws GitAPIException {
