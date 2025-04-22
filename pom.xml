@@ -44,6 +44,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>2.0</version>
+        </dependency>
+        <dependency>
             <!-- https://central.sonatype.dev/artifact/org.eclipse.jgit/org.eclipse.jgit/ -->
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>

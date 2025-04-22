@@ -74,6 +74,6 @@ Commit hashes:
    clt backport -s release/2.28 -t release/2.26 -c ${C}
 
 ❓ To grab D (should pull in A→B→D):
-   clt backport -s release/2.28 -t release/2.26 -c ${D}
+   clt backport -s release/2.28 -t release/2.26 -c ${D}|
 
 EOF

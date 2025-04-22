@@ -6,6 +6,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -62,23 +63,14 @@ public class BackportCommand implements Runnable {
             Repository repo = git.getRepository();
             LOGGER.info("Repository loaded successfully.");
 
-            // Determine commits: either user-specified or resolve automatic dependencies
-            List<String> toBackport;
-            if (!noAutoDeps && commitHashes != null && !commitHashes.isEmpty()) {
-                toBackport = new ArrayList<>();
-                for (String hash : commitHashes) {
-                    toBackport.addAll(resolveDependencies(repo, git, hash));
-                }
-            } else if (commitHashes == null || commitHashes.isEmpty()) {
-                String latest = resolveCommitHash(repo, sourceBranch);
-                toBackport = noAutoDeps
-                        ? Collections.singletonList(latest)
-                        : resolveDependencies(repo, git, latest);
-            } else {
-                toBackport = new ArrayList<>(commitHashes);
+            /* ── upfront validation ─────────────────────────────── */
+            // Fail fast if either branch name is wrong
+            resolveCommitHash(repo, sourceBranch);           // throws IllegalArgumentException if missing
+            if (repo.resolve("refs/heads/" + targetBranch) == null) {
+                throw new RefNotFoundException("Branch not found: " + targetBranch);
             }
 
-            // Remove duplicates while preserving order
+            List<String> toBackport = decideCommits(repo, git);      // ← extracted original decision block
             LinkedHashSet<String> unique = new LinkedHashSet<>(toBackport);
             toBackport = new ArrayList<>(unique);
             LOGGER.infof("Final commit sequence to backport: %s", toBackport);
@@ -111,11 +103,34 @@ public class BackportCommand implements Runnable {
             LOGGER.infof("Backport complete on branch '%s'.", backportBranchName);
             LOGGER.info("Please push the branch manually: git push <remote> " + backportBranchName);
 
+        } catch (RefNotFoundException e) {
+            throw new RuntimeException(e);
         } catch (IOException | GitAPIException e) {
             LOGGER.error("Backport process failed.", e);
             throw new RuntimeException(e);
         }
     }
+
+    /* helper extracted from original block */
+    private List<String> decideCommits(Repository repo, Git git)
+            throws IOException, GitAPIException {
+
+        if (!noAutoDeps && commitHashes != null && !commitHashes.isEmpty()) {
+            List<String> list = new ArrayList<>();
+            for (String hash : commitHashes) list.addAll(resolveDependencies(repo, git, hash));
+            return list;
+        }
+
+        if (commitHashes == null || commitHashes.isEmpty()) {
+            String latest = resolveCommitHash(repo, sourceBranch);
+            return noAutoDeps
+                   ? Collections.singletonList(latest)
+                   : resolveDependencies(repo, git, latest);
+        }
+
+        return new ArrayList<>(commitHashes);
+    }
+
 
     private Repository loadCurrentRepository() throws IOException {
         LOGGER.debug("Loading repository");
