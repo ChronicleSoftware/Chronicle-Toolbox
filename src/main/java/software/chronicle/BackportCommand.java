@@ -1,5 +1,6 @@
 package software.chronicle;
 
+import org.eclipse.jgit.api.errors.MultipleParentsNotAllowedException;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -91,23 +92,32 @@ public class BackportCommand implements Runnable {
             // Cherry-pick in order
             for (String hash : toBackport) {
                 LOGGER.infof("Cherry-picking commit: %s", hash);
-                CherryPickResult result = git.cherryPick().include(repo.resolve(hash)).call();
-                switch (result.getStatus()) {
-                    case OK:
-                        LOGGER.infof("Picked %s", hash);
-                        break;
-                    case CONFLICTING:
-                        LOGGER.errorf("Conflict in %s on branch %s", hash, backportBranchName);
-                        handleConflicts(git);
-                        return;
-                    default:
-                        LOGGER.errorf("Cherry-pick %s status: %s", hash, result.getStatus());
-                        throw new BackportException("Unexpected status: " + result.getStatus());
+                try {
+                    CherryPickResult result = git.cherryPick()
+                            .include(repo.resolve(hash))
+                            .call();
+                    switch (result.getStatus()) {
+                        case OK:
+                            LOGGER.infof("Picked %s", hash);
+                            break;
+                        case CONFLICTING:
+                            LOGGER.errorf("Conflict in %s on branch '%s'", hash, backportBranchName);
+                            handleConflicts(git);
+                            return;
+                        default:
+                            LOGGER.errorf("Unexpected status %s for %s", result.getStatus(), hash);
+                            throw new BackportException("Unexpected status: " + result.getStatus());
+                    }
+                } catch (MultipleParentsNotAllowedException e) {
+                    // merge commit detected
+                    if (noAutoDeps) {
+                        throw new BackportException("merge commits are not supported: " + hash);
+                    } else {
+                        LOGGER.warnf("Skipping merge commit: %s", hash);
+                    }
                 }
             }
-
             LOGGER.infof("Backport complete on %s. Please push manually.", backportBranchName);
-
         } catch (IOException | GitAPIException e) {
             LOGGER.error("Backport failed.", e);
             throw new RuntimeException(e);

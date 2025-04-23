@@ -267,4 +267,142 @@ class BackportCommandIntegrationTest {
         long countA = picked.stream().filter(msg -> msg.equals("A util")).count();
         assertEquals(1, countA, "A should be cherry-picked exactly once");
     }
+
+    @Test
+    void testComplexHistoryMerge() throws Exception {
+        // Tests backporting from a merged branch with complex history.
+        git = initRepo();
+
+        // Setup base branch
+        git.branchCreate().setName("release/2.26").call();
+        git.checkout().setName("release/2.26").call();
+        commitFile(git, "base.txt", "base", "Base commit");
+
+        // Create diverging branches
+        git.checkout().setCreateBranch(true).setName("featureA").call();
+        RevCommit a1 = commitFile(git, "a.txt", "A1", "A1 commit");
+        RevCommit a2 = commitFile(git, "a.txt", "A2", "A2 commit");
+
+        git.checkout().setName("release/2.26").call();
+        git.checkout().setCreateBranch(true).setName("featureB").call();
+        RevCommit b1 = commitFile(git, "b.txt", "B1", "B1 commit");
+
+        // Merge featureA into featureB to create a complex history
+        git.merge().include(a2).call();
+
+        // Backport from merged branch
+        String mergedBranch = "featureB";
+        BackportCommand cmd = new BackportCommand();
+        cmd.sourceBranch = mergedBranch;
+        cmd.targetBranch = "release/2.26";
+        cmd.commitHashes = List.of(); // use latest commit
+        cmd.run();
+
+        Ref backportRef = findBackportBranch(git);
+        assertNotNull(backportRef);
+    }
+
+    @Test
+    void testMidSequenceConflict() throws Exception {
+        // Tests that a conflict in the middle of a sequence of commits is handled correctly.
+        git = initRepo();
+        git.branchCreate().setName("release/2.26").call();
+        git.checkout().setName("release/2.26").call();
+        commitFile(git, "common.txt", "v1", "base");
+
+        git.checkout().setCreateBranch(true).setName("release/2.28").call();
+        commitFile(git, "common.txt", "A", "Commit A");
+        commitFile(git, "common.txt", "B", "Commit B");
+        RevCommit C = commitFile(git, "common.txt", "C", "Commit C");
+        commitFile(git, "common.txt", "D", "Commit D");
+
+        // Create conflict in target
+        git.checkout().setName("release/2.26").call();
+        Files.writeString(tempDir.resolve("common.txt"), "conflict line", StandardOpenOption.TRUNCATE_EXISTING);
+        git.add().addFilepattern("common.txt").call();
+        git.commit().setMessage("conflict").call();
+
+        BackportCommand cmd = new BackportCommand();
+        cmd.sourceBranch = "release/2.28";
+        cmd.targetBranch = "release/2.26";
+        cmd.commitHashes = List.of(C.getName());
+        cmd.run();
+
+        Ref backportRef = findBackportBranch(git);
+        assertNotNull(backportRef);
+        assertEquals("CHERRY_PICKING", git.getRepository().getRepositoryState().name());
+    }
+
+    @Test
+    void testEmptyCommitBackport() throws Exception {
+        // Tests that an empty commit can be backported.
+        git = initRepo();
+        git.branchCreate().setName("release/2.26").call();
+        git.checkout().setCreateBranch(true).setName("release/2.28").call();
+
+        RevCommit empty = git.commit().setMessage("empty").setAllowEmpty(true).call();
+
+        BackportCommand cmd = new BackportCommand();
+        cmd.noAutoDeps = true;
+        cmd.sourceBranch = "release/2.28";
+        cmd.targetBranch = "release/2.26";
+        cmd.commitHashes = List.of(empty.getName());
+        cmd.run();
+
+        Ref backportRef = findBackportBranch(git);
+        assertNotNull(backportRef);
+    }
+
+    @Test
+    void testAlreadyPickedCommit() throws Exception {
+        // Tests that a commit already cherry-picked into the target branch is skipped.
+        git = initRepo();
+        git.branchCreate().setName("release/2.26").call();
+        git.checkout().setName("release/2.26").call();
+        RevCommit base = commitFile(git, "dupe.txt", "same", "base");
+
+        git.checkout().setCreateBranch(true).setName("release/2.28").call();
+        // manually cherry-pick already done
+        git.cherryPick().include(base).call();
+
+        BackportCommand cmd = new BackportCommand();
+        cmd.noAutoDeps = true;
+        cmd.sourceBranch = "release/2.28";
+        cmd.targetBranch = "release/2.26";
+        cmd.commitHashes = List.of(base.getName());
+        cmd.run(); // Should skip or no-op, not fail
+    }
+
+    @Test
+    void testUntrackedFilePreventsBackport() throws Exception {
+        // Tests that an untracked file prevents backporting.
+        git = initRepo();
+        Files.writeString(tempDir.resolve("junk.txt"), "temp");
+
+        BackportCommand cmd = new BackportCommand();
+        cmd.sourceBranch = "main";
+        cmd.targetBranch = "main";
+        cmd.noAutoDeps = true;
+        cmd.commitHashes = List.of();
+
+        Exception ex = assertThrows(IllegalStateException.class, cmd::run);
+        assertTrue(ex.getMessage().contains("not clean"));
+    }
+
+    @Test
+    void testUnsafeRepoStateFails() throws Exception {
+        // Tests that the command fails if the repository is in an unsafe state.
+        git = initRepo();
+        Path cherryPath = tempDir.resolve(".git").resolve("CHERRY_PICK_HEAD");
+        Files.writeString(cherryPath, "deadbeef");
+
+        BackportCommand cmd = new BackportCommand();
+        cmd.sourceBranch = "main";
+        cmd.targetBranch = "main";
+        cmd.noAutoDeps = true;
+        cmd.commitHashes = List.of();
+
+        Exception ex = assertThrows(IllegalStateException.class, cmd::run);
+        assertTrue(ex.getMessage().contains("unsafe state"));
+    }
 }

@@ -40,29 +40,29 @@ public class CreateVerBranchCommand implements Runnable {
             description = "Path to repos config file (YAML format).")
     private File configFile;
 
-    private static final Logger logger = Logger.getLogger(CreateVerBranchCommand.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(CreateVerBranchCommand.class.getName());
 
     @Override
     public void run() {
         List<String> repos = GitUtils.loadReposFromFile(configFile);
         if (repos.isEmpty()) {
-            logger.severe("No repositories to process.");
+            LOGGER.severe("No repositories to process.");
             return;
         }
 
         for (String path : repos) {
             File dir = new File(path);
             if (!dir.isDirectory()) {
-                logger.severe("Not a directory: " + path);
+                LOGGER.severe("Not a directory: " + path);
                 continue;
             }
 
-            logger.info("Processing repo: " + path);
+            LOGGER.info("Processing repo: " + path);
             try (Git git = GitUtils.openRepository(dir)) {
                 String startPoint;
                 if (baseBranch == null || baseBranch.isBlank()) {
                     startPoint = git.getRepository().getBranch(); // use current HEAD branch
-                    logger.info("  Using current branch as base: " + startPoint);
+                    LOGGER.info("  Using current branch as base: " + startPoint);
                 } else {
                     startPoint = baseBranch;
                     GitUtils.checkoutBranch(git, startPoint);
@@ -71,7 +71,7 @@ public class CreateVerBranchCommand implements Runnable {
                 GitUtils.createBranch(git, branchName, startPoint);
 
             } catch (IOException | GitAPIException e) {
-                logger.severe("Error processing " + path + ": " + e.getMessage());
+                LOGGER.severe("Error processing " + path + ": " + e.getMessage());
             }
         }
     }
