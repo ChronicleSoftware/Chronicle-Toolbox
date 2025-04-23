@@ -5,15 +5,10 @@ import picocli.CommandLine.Option;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
-
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -23,11 +18,12 @@ import java.util.logging.Logger;
  * Assumes all listed repositories are up-to-date locally; performs no remote operations.
  */
 @Command(
-        name        = "create-version-branch",
-        aliases     = {"cvb"},
-        mixinStandardHelpOptions = true,
-        description = "Creates a new version branch across multiple repositories using JGit."
+    name        = "create-version-branch",
+    aliases     = {"cvb"},
+    mixinStandardHelpOptions = true,
+    description = "Creates a new version branch across multiple repositories using JGit."
 )
+@SuppressWarnings("unused")
 public class CreateVerBranchCommand implements Runnable {
 
     @Option(names = {"-n", "--branch-name"},
@@ -36,8 +32,7 @@ public class CreateVerBranchCommand implements Runnable {
     private String branchName;
 
     @Option(names = {"-B", "--base-branch"},
-            defaultValue = "main",
-            description = "Local base branch to create from (defaults to main).")
+            description = "Local base branch to create from (defaults to each repo's current branch).")
     private String baseBranch;
 
     @Option(names = {"-c", "--config-file"},
@@ -49,65 +44,34 @@ public class CreateVerBranchCommand implements Runnable {
 
     @Override
     public void run() {
-        // 1) Load configuration via SnakeYAML
-        if (!configFile.exists()) {
-            logger.severe("Config file not found: " + configFile.getAbsolutePath());
+        List<String> repos = GitUtils.loadReposFromFile(configFile);
+        if (repos.isEmpty()) {
+            logger.severe("No repositories to process.");
             return;
         }
 
-        List<String> repos;
-        Yaml yaml = new Yaml();
-        try (FileInputStream fis = new FileInputStream(configFile)) {
-            Map<String, Object> cfg = yaml.load(fis);
-            Object list = cfg.get("repositories");
-            if (!(list instanceof List)) {
-                logger.severe("Config file must contain a top-level 'repositories' list.");
-                return;
-            }
-            // unchecked cast, but config file should ensure type
-            //noinspection unchecked
-            repos = (List<String>) list;
-        } catch (IOException e) {
-            logger.severe("Failed to read config file: " + e.getMessage());
-            return;
-        }
-
-        // 2) Iterate each repo
-        for (String repoPath : repos) {
-            File repoDir = new File(repoPath);
-            if (!repoDir.isDirectory()) {
-                logger.severe("Not a directory: " + repoPath);
+        for (String path : repos) {
+            File dir = new File(path);
+            if (!dir.isDirectory()) {
+                logger.severe("Not a directory: " + path);
                 continue;
             }
 
-            logger.info("Processing repo: " + repoPath);
-            try (Git git = Git.open(repoDir)) {
-                // Checkout local base branch
-                try {
-                    git.checkout()
-                        .setName(baseBranch)
-                        .call();
-                } catch (GitAPIException e) {
-                    logger.severe("  Failed to checkout base branch '" + baseBranch + "': " + e.getMessage());
-                    continue;
+            logger.info("Processing repo: " + path);
+            try (Git git = GitUtils.openRepository(dir)) {
+                String startPoint;
+                if (baseBranch == null || baseBranch.isBlank()) {
+                    startPoint = git.getRepository().getBranch(); // use current HEAD branch
+                    logger.info("  Using current branch as base: " + startPoint);
+                } else {
+                    startPoint = baseBranch;
+                    GitUtils.checkoutBranch(git, startPoint);
                 }
 
-                // Create & checkout new branch from local base branch
-                try {
-                    git.checkout()
-                        .setCreateBranch(true)
-                        .setName(branchName)
-                        .setStartPoint(baseBranch)
-                        .call();
-                    logger.info("  Created and checked out branch '" + branchName + "'");
-                } catch (RefAlreadyExistsException ex) {
-                    logger.warning("  Branch already exists: " + branchName);
-                } catch (GitAPIException e) {
-                    logger.severe("  Failed to create branch '" + branchName + "': " + e.getMessage());
-                }
+                GitUtils.createBranch(git, branchName, startPoint);
 
-            } catch (IOException e) {
-                logger.severe("  Unable to open repository at " + repoPath + ": " + e.getMessage());
+            } catch (IOException | GitAPIException e) {
+                logger.severe("Error processing " + path + ": " + e.getMessage());
             }
         }
     }
