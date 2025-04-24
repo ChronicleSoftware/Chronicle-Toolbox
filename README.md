@@ -1,128 +1,126 @@
+---
+
 # Chronicle Toolbox
 
-A CLI tool to streamline Git workflows across Chronicle repositories. Supports backporting, version branch creation, and branch listing — all from the command line.
+A CLI tool to streamline Git workflows across multiple Chronicle repositories.  
+Supports backporting commits, creating version branches, and listing branches — all from the terminal.
 
-## Features
+---
 
-- **Backport**: Cherry-pick commits from one branch into another, with optional automatic dependency resolution.  
-- **Create Version Branch**: Generate version-specific branches across multiple repositories via a YAML configuration.  
-- **List Branches**: Enumerate local Git branches.
+## 🚀 Features
 
-## Requirements
+- **Backport**: Cherry-pick commits from one branch into another, with optional automatic dependency resolution.
+- **Create Version Branch**: Create a new branch across multiple repositories, configured via a YAML file.
+- **List Branches**: List all local Git branches in the current repository so you know what clt can see.
 
-- Java 17 or higher  
-- Maven ([https://maven.apache.org/](https://maven.apache.org/))  
+---
+
+## ⚙️ Requirements
+
+- Java 17+
+- Maven ([https://maven.apache.org/](https://maven.apache.org/))
 - Git (installed locally)
 
-## Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-org/chronicle-toolbox.git
-   cd chronicle-toolbox
-   ```
-2. **Build the project**:
-   ```bash
-   ./mvnw clean package
-   ```
-3. **Install the CLI launcher**:
-   ```bash
-   chmod +x ./clt
-   # Move or symlink to a directory in your PATH
-   mv ./clt /usr/local/bin/
-   # Or create a symlink in ~/bin
-   mkdir -p "$HOME/bin"
-   ln -s $(pwd)/clt "$HOME/bin/clt"
-   ```
-4. **Verify installation**:
-   ```bash
-   clt --help
-   ```
+---
 
 ## CLI Commands
 
 ### Backport (`backport` / `bp`)
+
 ```bash
-clt backport -source <source-branch> -target <target-branch> [-commit <hash>[,<hash>...]] [-name <branch-name>] [--no-auto-deps]
+clt backport -s <source-branch> -t <target-branch> [-c <commit1,commit2,...>] [-n <new-branch-name>] [--no-auto-deps]
 ```
-- **Description**: Automates backporting one or more commits, optionally resolving dependencies automatically.  
-- **Options**:  
-  - `-s`, `--source` _\<source-branch\>_ (required)  
-  - `-t`, `--target` _\<target-branch\>_ (required)  
-  - `-c`, `--commit` _\<hash1,hash2,...\>_ (comma-separated list)  
-  - `-n`, `--name` _\<backport-branch-name\>_  
-  - `--no-auto-deps` (disable automatic dependency resolution)
-- **Process**:
-   1. Load the Git repository from the current directory.
-   2. Resolve commit hashes (defaults to the latest if none provided).
-   3. Automatically detect commit dependencies (unless `--no-auto-deps` is used).
-   4. Checkout the target branch.
-   5. Create a new backport branch (auto-generated name if not supplied).
-   6. Cherry-pick commits in dependency order.
-   7. On success, logs instructions to manually push the new branch.
+
+- **Backports** one or more commits from a source to a target branch.
+- Supports automatic dependency resolution (unless `--no-auto-deps` is set).
+
+#### Options:
+- `-s`, `--source` — required source branch or commit
+- `-t`, `--target` — required target branch
+- `-c`, `--commit` — comma-separated list of commits to backport
+- `-n`, `--name` — name of the backport branch (optional)
+- `--no-auto-deps` — disables automatic commit dependency resolution
+
+---
 
 ### Create Version Branch (`create-version-branch` / `cvb`)
-```bash
-clt create-version-branch -branch-name <branch> -base-branch <base>
-```
-- **Description**: Creates a new version branch across multiple repositories defined in a YAML config.
-- **Options**:
-  - `-n`, `--branch-name` _\<branch\>_ (required)  
-  - `-B`, `--base-branch` _\<base\>_ (default: `main`)  
-  - `-c`, `--config-file` _\<path\>_ (default: `repos.yaml`)
 
-#### repos.yaml Layout & Location
-Place a `repos.yaml` file in your current working directory (or specify via `-c`).
+```bash
+clt create-version-branch -n <branch-name> [-B <base-branch>] [-c <config-file>]
+```
+
+- Creates a new branch in each repo listed in a `repos.yaml` config file.
+- Works entirely locally — no remote interaction.
+
+#### Options:
+- `-n`, `--branch-name` — name of the new branch (required)
+- `-B`, `--base-branch` — local branch to create from (defaults to current branch in each repo)
+- `-c`, `--config-file` — path to a YAML file listing repositories (default: `./repos.yaml`)
+
+---
+
+### `repos.yaml` Structure
+
+Your YAML file must contain a top-level `repos:` key with a list of repository paths:
 
 ```yaml
-# repos.yaml
-authors:
-  # (optional metadata)
 repos:
-  - /absolute/or/relative/path/to/repo1
-  - /absolute/or/relative/path/to/repo2
-  - ../other-project/repo3
+  - C:/Users/you/dev/repo1      # ✅ Absolute (Windows)
+  - /home/you/projects/repo2    # ✅ Absolute (Unix)
+  - ../relative/path/to/repo3   # ✅ Relative to current directory
 ```
 
-- **Key**: `repos` must be a top-level list of file system paths.  
-- **Default Path**: `./repos.yaml`  
-- **Custom Path**: e.g.  
+> **We recommend using absolute paths** to avoid issues with relative path resolution, especially in CI environments.
+
+#### Location:
+
+- **Default**: `./repos.yaml`
+- **Custom**: Use the `-c` option:
   ```bash
-  clt cvb -n release/v1.2.0 -c config/repos.yaml
+  clt cvb -n release/v1.2.0 -c ./config/repos.yaml
   ```
 
-#### Usage Examples
+#### Examples:
 
 ```bash
-# Basic: default base-branch=main, config=./repos.yaml
+# Create new branch across repos using default repos.yaml
 clt cvb -n release/v1.0.0
 
-# Custom base branch\clt cvb -n release/v1.1.0 -B develop
+# Use develop as base branch
+clt cvb -n release/v1.1.0 -B develop
 
-# Custom config file
-clt cvb -n release/v1.2.0 -c ./config/myrepos.yaml
+# Use a custom config file
+clt cvb -n release/v1.2.0 -c /absolute/path/to/repos.yaml
 ```
 
+---
+
 ### List Branches (`list`)
+
 ```bash
 clt list
 ```
-- **Description**: Prints all local Git branches in the current repository.
 
-## Backport Pipeline Overview
+- Lists all local branches in the current Git repository.
 
-1. **Load Repository**: Locate `.git` via JGit’s `FileRepositoryBuilder`.  
-2. **Resolve Commits**: Default to latest on source branch if none specified.  
-3. **Analyze Dependencies**: Optionally dry-run cherry-picks to determine needed parent commits.  
-4. **Checkout Target**: Switch to the target branch.  
-5. **Branch Creation**: Create new backport branch.  
-6. **Cherry-Pick Commits**: Apply each commit in order; pause on conflicts.  
-7. **Manual Push**: After success, run `git push <remote> <branch-name>`.
+---
 
-## Notes for Windows Users
+## Backport Command Flow
 
-To avoid line-ending issues:
-```bash
-git config --global core.autocrlf input
-```
-Use Git Bash or WSL for best compatibility.
+1. **Load Repository**: Locate the `.git` directory.
+2. **Resolve Commits**: If `-c` is used, parse commits; otherwise use latest.
+3. **Resolve Dependencies** (if enabled): Build a topological commit order.
+4. **Checkout Target**: Switch to the target branch.
+5. **Create New Branch**: From the target.
+6. **Cherry-pick Commits**: Apply each commit in order, handle conflicts.
+7. **Finish**: You’ll be prompted to `git push` manually.
+
+---
+
+## Windows Tips
+
+- Avoid newline issues with:
+  ```bash
+  git config --global core.autocrlf input
+  ```
+- For best results, use Git Bash or WSL when running commands.
