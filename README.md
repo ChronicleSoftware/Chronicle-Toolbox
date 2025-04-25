@@ -43,6 +43,18 @@ clt backport -s <source-branch> -t <target-branch> [-c <commit1,commit2,...>] [-
 
 ---
 
+## Backport Command Flow
+
+1. **Loads Repository**: Locate the `.git` directory.
+2. **Resolves Commits**: If `-c` is used, parse commits; otherwise use latest.
+3. **Resolves Dependencies** (if enabled): Build a topological commit order.
+4. **Checkouts Target**: Switch to the target branch.
+5. **Creates New Branch**: From the target.
+6. **Cherry-picks Commits**: Apply each commit in order, handle conflicts.
+7. **Finishes**: You’ll be prompted to `git push` manually.
+
+---
+
 ### Create Version Branch (`create-version-branch` / `cvb`)
 
 ```bash
@@ -102,18 +114,6 @@ clt list
 ```
 
 - Lists all local branches in the current Git repository.
-
----
-
-## Backport Command Flow
-
-1. **Load Repository**: Locate the `.git` directory.
-2. **Resolve Commits**: If `-c` is used, parse commits; otherwise use latest.
-3. **Resolve Dependencies** (if enabled): Build a topological commit order.
-4. **Checkout Target**: Switch to the target branch.
-5. **Create New Branch**: From the target.
-6. **Cherry-pick Commits**: Apply each commit in order, handle conflicts.
-7. **Finish**: You’ll be prompted to `git push` manually.
 
 ---
 

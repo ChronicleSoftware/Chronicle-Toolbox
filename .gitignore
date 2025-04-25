@@ -6,6 +6,12 @@ pom.xml.versionsBackup
 release.properties
 .flattened-pom.xml
 
+# Testing Scripts
+reset-git-dep-test.sh
+reset-git-dep.sh
+reset_playground.sh
+cvb-test-repo.sh
+
 # Eclipse
 .project
 .classpath
