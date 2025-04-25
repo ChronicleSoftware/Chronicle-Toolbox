@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.commands;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -18,9 +18,9 @@ import java.util.List;
         description = "Lists available Git branches, optionally filtered by prefix."
 )
 
-/**
- * Nice to confirm that clt sees all the same things that git sees.
- * Its git counterpart is git branch --list
+/*
+  Nice to confirm that clt sees all the same things that git sees.
+  Its git counterpart is git branch --list
  */
 @Singleton
 public class ListBranchesCommand implements Runnable {

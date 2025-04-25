@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.commands;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Ref;
@@ -7,7 +7,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,8 +32,8 @@ class CreateVerBranchCommandIntegrationTest {
         Path repo1 = tempDir.resolve("repo1"); Files.createDirectory(repo1);
         Path repo2 = tempDir.resolve("repo2"); Files.createDirectory(repo2);
 
-        Git git1 = initRepo(repo1);
-        Git git2 = initRepo(repo2);
+        initRepo(repo1);
+        initRepo(repo2);
 
         // Write config file
         Path config = tempDir.resolve("repos.yaml");
@@ -60,7 +59,7 @@ class CreateVerBranchCommandIntegrationTest {
                                            .stream()
                                            .map(Ref::getName)
                                            .map(name -> name.replace("refs/heads/", ""))
-                                           .collect(Collectors.toList());
+                                           .toList();
                 assertTrue(branches.contains("release/v1.0.0"),
                            "Expected release/v1.0.0 in " + repoDir);
             }
@@ -112,7 +111,7 @@ class CreateVerBranchCommandIntegrationTest {
     void testCreateVersionBranchInvalidPathSkipped() throws Exception {
         // Setup one valid and one invalid repo
         Path validRepo = tempDir.resolve("good"); Files.createDirectory(validRepo);
-        Git git = initRepo(validRepo);
+        initRepo(validRepo);
 
         // Write config with invalid path
         Path config = tempDir.resolve("repos.yaml");

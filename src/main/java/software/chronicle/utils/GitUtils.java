@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.utils;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;

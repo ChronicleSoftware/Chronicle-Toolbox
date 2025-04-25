@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.commands;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -216,7 +216,7 @@ class BackportCommandIntegrationTest {
         cmd.noAutoDeps   = true;
         cmd.commitHashes = List.of("deadbeef");
 
-        RuntimeException ex = assertThrows(RuntimeException.class, cmd::run);
+        BackportCommand.BackportException ex = assertThrows(BackportCommand.BackportException.class, cmd::run);
         assertTrue(ex.getCause() instanceof RefNotFoundException,
             "Expected cause to be RefNotFoundException");
     }
@@ -232,7 +232,7 @@ class BackportCommandIntegrationTest {
         cmd.noAutoDeps   = true;
         cmd.commitHashes = List.of();
 
-        RuntimeException ex = assertThrows(RuntimeException.class, cmd::run);
+        BackportCommand.BackportException ex = assertThrows(BackportCommand.BackportException.class, cmd::run);
         assertTrue(ex.getCause() instanceof RefNotFoundException,
             "Expected cause to be RefNotFoundException");
     }
@@ -280,12 +280,12 @@ class BackportCommandIntegrationTest {
 
         // Create diverging branches
         git.checkout().setCreateBranch(true).setName("featureA").call();
-        RevCommit a1 = commitFile(git, "a.txt", "A1", "A1 commit");
+        commitFile(git, "a.txt", "A1", "A1 commit");
         RevCommit a2 = commitFile(git, "a.txt", "A2", "A2 commit");
 
         git.checkout().setName("release/2.26").call();
         git.checkout().setCreateBranch(true).setName("featureB").call();
-        RevCommit b1 = commitFile(git, "b.txt", "B1", "B1 commit");
+        commitFile(git, "b.txt", "B1", "B1 commit");
 
         // Merge featureA into featureB to create a complex history
         git.merge().include(a2).call();

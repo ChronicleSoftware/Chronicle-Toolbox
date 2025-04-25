@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.commands;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.jboss.logging.Logger;
+import software.chronicle.utils.GitUtils;
 
 /**
  * create-version-branch (cvb)
@@ -44,6 +45,7 @@ public class CreateVerBranchCommand implements Runnable {
 
     @Override
     public void run() {
+        // 1) Load the paths from config file
         List<String> repos = GitUtils.loadReposFromFile(configFile);
         if (repos.isEmpty()) {
             LOGGER.error("No repositories to process.");
@@ -57,9 +59,11 @@ public class CreateVerBranchCommand implements Runnable {
                 continue;
             }
 
+            // 2) Open the repository
             LOGGER.infof("Processing repo: %s", path);
             try (Git git = GitUtils.openRepository(dir)) {
                 try {
+                    // 3) Validate clean workspace and state
                     GitUtils.ensureCleanState(git);
                 } catch (IllegalStateException | GitAPIException e) {
                     LOGGER.errorf("Repository not safe to modify: %s — %s", path, e.getMessage());
@@ -67,6 +71,7 @@ public class CreateVerBranchCommand implements Runnable {
                 }
 
                 String startPoint;
+                // 4) Creates branch from HEAD unless base branch is specified
                 if (baseBranch == null || baseBranch.isBlank()) {
                     startPoint = git.getRepository().getBranch(); // use current HEAD branch
                     LOGGER.infof("  Using current branch as base: %s", startPoint);

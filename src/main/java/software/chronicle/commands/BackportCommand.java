@@ -1,4 +1,4 @@
-package software.chronicle;
+package software.chronicle.commands;
 
 import org.eclipse.jgit.api.errors.MultipleParentsNotAllowedException;
 import picocli.CommandLine;
@@ -15,6 +15,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import jakarta.inject.Singleton;
 import org.jboss.logging.Logger;
+import software.chronicle.utils.GitUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,18 +79,18 @@ public class BackportCommand implements Runnable {
             toBackport = new ArrayList<>(unique);
             LOGGER.infof("Commits to backport: %s", toBackport);
 
-            // 4) Default branch naming
+            // 4) Creates a name for the new backport branch if not provided
             if (backportBranchName == null || backportBranchName.isBlank()) {
                 String shortHash = toBackport.isEmpty() ? "unknown" : toBackport.get(toBackport.size()-1).substring(0,7);
                 backportBranchName = String.format("backport/%s/%s", targetBranch.replace('/', '-'), shortHash);
                 LOGGER.infof("Generated backport branch name: %s", backportBranchName);
             }
 
-            // Checkout target and create new branch
+            // 5) Checkout and create the backport branch from the target branch
             GitUtils.checkoutBranch(git, targetBranch);
             GitUtils.createBranch(git, backportBranchName, targetBranch);
 
-            // Cherry-pick in order
+            // 6) Cherry-pick in order
             for (String hash : toBackport) {
                 LOGGER.infof("Cherry-picking commit: %s", hash);
                 try {
@@ -111,19 +112,27 @@ public class BackportCommand implements Runnable {
                 } catch (MultipleParentsNotAllowedException e) {
                     // merge commit detected
                     if (noAutoDeps) {
-                        throw new BackportException("merge commits are not supported: " + hash);
+                        throw new BackportException("Merge commits are not supported: " + hash);
                     } else {
                         LOGGER.warnf("Skipping merge commit: %s", hash);
                     }
                 }
             }
             LOGGER.infof("Backport complete on %s. Please push manually.", backportBranchName);
+
         } catch (IOException | GitAPIException e) {
-            LOGGER.error("Backport failed.", e);
-            throw new RuntimeException(e);
+            throw new BackportException("Backport failed", e);
         }
     }
 
+    /**
+     * Determines the list of commits to backport based on the provided options.
+     *
+     * @param repo  The Git repository.
+     * @param srcId The ObjectId of the source branch or commit.
+     * @return A list of commit hashes to backport.
+     * @throws IOException If an error occurs while resolving dependencies.
+     */
     private List<String> decideCommits(Repository repo, ObjectId srcId) throws IOException {
         if (!noAutoDeps && commitHashes != null && !commitHashes.isEmpty()) {
             return resolveDependencies(repo, commitHashes);
@@ -137,6 +146,14 @@ public class BackportCommand implements Runnable {
         return new ArrayList<>(commitHashes);
     }
 
+    /**
+     * Resolves dependencies for the given list of commit hashes.
+     *
+     * @param repo   The Git repository.
+     * @param hashes The list of commit hashes to resolve dependencies for.
+     * @return A list of commit hashes in dependency order.
+     * @throws IOException If an error occurs while walking the commit graph.
+     */
     private List<String> resolveDependencies(Repository repo, List<String> hashes) throws IOException {
         try (RevWalk walk = new RevWalk(repo)) {
             List<RevCommit> ancestry = new ArrayList<>();
@@ -148,21 +165,30 @@ public class BackportCommand implements Runnable {
                 walk.markUninteresting(walk.parseCommit(base));
                 for (RevCommit c : walk) ancestry.add(c);
             }
-            Collections.reverse(ancestry);
+            Collections.reverse(ancestry); // Ensure commits are in the correct order
             List<String> list = new ArrayList<>();
             for (RevCommit c : ancestry) list.add(c.getName());
             return list;
         }
     }
 
+    /**
+     * Handles conflicts that occur during a cherry-pick operation.
+     *
+     * @param git The Git instance.
+     * @throws GitAPIException If an error occurs while retrieving the status.
+     */
     private void handleConflicts(Git git) throws GitAPIException {
         Status status = git.status().call();
         status.getConflicting().forEach(f -> LOGGER.error("Conflict: " + f));
         System.out.println("Resolve conflicts and run: git cherry-pick --continue");
     }
 
-    /** Custom exception for backport errors */
-    static class BackportException extends RuntimeException {
-        BackportException(String msg) { super(msg); }
+    /**
+     * Custom exception for backport-related errors.
+     */
+    public static class BackportException extends RuntimeException {
+        public BackportException(String message) { super(message); }
+        public BackportException(String message, Throwable cause) { super(message, cause); }
     }
 }
