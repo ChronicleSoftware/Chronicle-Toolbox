@@ -69,7 +69,7 @@ public class BackportCommand implements Runnable {
             // 1) Validate clean workspace and state
             GitUtils.ensureCleanState(git);
 
-            // 2) Resolve revisions
+            // 2) Resolves branches
             ObjectId srcId = GitUtils.resolveRevString(repo, sourceBranch);
             GitUtils.resolveRevString(repo, targetBranch);
 
@@ -87,7 +87,6 @@ public class BackportCommand implements Runnable {
             }
 
             // 5) Checkout and create the backport branch from the target branch
-            GitUtils.checkoutBranch(git, targetBranch);
             GitUtils.createBranch(git, backportBranchName, targetBranch);
 
             // 6) Cherry-pick in order

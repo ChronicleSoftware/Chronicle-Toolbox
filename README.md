@@ -2,7 +2,7 @@
 
 # Chronicle Toolbox
 
-A CLI tool to streamline Git workflows across multiple Chronicle repositories.  
+A CLI tool to streamline Git workflows across multiple Chronicle repositories.
 Supports backporting commits, creating version branches, and listing branches — all from the terminal.
 
 ---
@@ -13,7 +13,6 @@ Supports backporting commits, creating version branches, and listing branches �
 - **Create Version Branch**: Create a new branch across multiple repositories, configured via a YAML file.
 - **List Branches**: List all local Git branches in the current repository so you know what clt can see.
 
-- There are also some testing scripts that create repos in /Downloads/ to mess with
 ---
 
 ## Requirements
@@ -24,16 +23,6 @@ Supports backporting commits, creating version branches, and listing branches �
 
 ---
 
-## Install
-```bash
-git clone git@github.com:ChronicleSoftware/Chronicle-Toolbox.git
-cd Chronicle-Toolbox
-mvnw clean package
-```
-
-You can then run `clt` to see the available commands.
-
----
 ## CLI Commands
 
 ### Backport (`backport` / `bp`)
@@ -52,17 +41,15 @@ clt backport -s <source-branch> -t <target-branch> [-c <commit1,commit2,...>] [-
 - `-n`, `--name` — name of the backport branch (optional)
 - `--no-auto-deps` — disables automatic commit dependency resolution
 
----
+#### Backport Command Flow
 
-## Backport Command Flow
-
-1. **Loads Repository**: Locate the `.git` directory.
-2. **Resolves Commits**: If `-c` is used, parse commits; otherwise use latest.
-3. **Resolves Dependencies** (if enabled): Build a topological commit order.
-4. **Checkouts Target**: Switch to the target branch.
-5. **Creates New Branch**: From the target.
-6. **Cherry-picks Commits**: Apply each commit in order, handle conflicts.
-7. **Finishes**: You’ll be prompted to `git push` manually.
+1.  **Load Repository**: Locate the `.git` directory.
+2.  **Resolve Commits**: If `-c` is used, parse commits; otherwise use latest.
+3.  **Resolve Dependencies** (if enabled): Build a topological commit order.
+4.  **Checkout Target**: Switch to the target branch.
+5.  **Create New Branch**: From the target.
+6.  **Cherry-pick Commits**: Apply each commit in order, handle conflicts.
+7.  **Finish**: You’ll be prompted to `git push` manually.
 
 ---
 
@@ -80,9 +67,20 @@ clt create-version-branch -n <branch-name> [-B <base-branch>] [-c <config-file>]
 - `-B`, `--base-branch` — local branch to create from (defaults to current branch in each repo)
 - `-c`, `--config-file` — path to a YAML file listing repositories (default: `./repos.yaml`)
 
----
+#### Examples:
 
-### `repos.yaml` Structure
+```bash
+# Create new branch across repos using default repos.yaml
+clt cvb -n release/v1.0.0
+
+# Use develop as base branch
+clt cvb -n release/v1.1.0 -B develop
+
+# Use a custom config file
+clt cvb -n release/v1.2.0 -c /absolute/path/to/repos.yaml
+```
+
+#### `repos.yaml` Structure
 
 Your YAML file must contain a top-level `repos:` key with a list of repository paths:
 
@@ -103,18 +101,20 @@ repos:
   clt cvb -n release/v1.2.0 -c ./config/repos.yaml
   ```
 
-#### Examples:
+---
+
+### Feature Branch (`feature-branch` / `fb`)
 
 ```bash
-# Create new branch across repos using default repos.yaml
-clt cvb -n release/v1.0.0
-
-# Use develop as base branch
-clt cvb -n release/v1.1.0 -B develop
-
-# Use a custom config file
-clt cvb -n release/v1.2.0 -c /absolute/path/to/repos.yaml
+clt feature-branch -n <name> [-b <base-branch>]
 ```
+
+* Creates a new local feature branch (named `feature/<name>`) from your current HEAD or a specified base branch.
+* Verifies your working directory is clean before creating the branch.
+
+#### Options:
+* `-n`, `--branch-name` — (Required) The unique part of your feature branch name (e.g., `fix-login-bug`).
+* `-b`, `--base-branch` — Existing branch to create the feature branch from (defaults to the current checked-out branch).
 
 ---
 
