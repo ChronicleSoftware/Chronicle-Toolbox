@@ -13,6 +13,7 @@ Supports backporting commits, creating version branches, and listing branches â€
 - **Create Version Branch**: Create a new branch across multiple repositories, configured via a YAML file.
 - **List Branches**: List all local Git branches in the current repository so you know what clt can see.
 
+- There are also some testing scripts that create repos in /Downloads/ to mess with
 ---
 
 ## Requirements
@@ -25,8 +26,8 @@ Supports backporting commits, creating version branches, and listing branches â€
 
 ## Install
 ```bash
-git clone git@github.com:your-org/chronicle-toolbox.git
-cd chronicle-toolbox
+git clone git@github.com:ChronicleSoftware/Chronicle-Toolbox.git
+cd Chronicle-Toolbox
 mvnw clean package
 ```
 
