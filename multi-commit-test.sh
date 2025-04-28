@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reset-git-dep-test.sh
+# multi-commit-test.sh
 # Creates a Git repo with a commit chain exhibiting dependencies A→B→D,
 # plus an independent commit C, so you can test --auto-deps.
 
