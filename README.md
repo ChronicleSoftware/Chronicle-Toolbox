@@ -7,7 +7,7 @@ Supports backporting commits, creating version branches, and listing branches ‚Ä
 
 ---
 
-## üöÄ Features
+## Features
 
 - **Backport**: Cherry-pick commits from one branch into another, with optional automatic dependency resolution.
 - **Create Version Branch**: Create a new branch across multiple repositories, configured via a YAML file.
@@ -15,7 +15,7 @@ Supports backporting commits, creating version branches, and listing branches ‚Ä
 
 ---
 
-## ‚öôÔ∏è Requirements
+## Requirements
 
 - Java 17+
 - Maven ([https://maven.apache.org/](https://maven.apache.org/))
@@ -23,6 +23,16 @@ Supports backporting commits, creating version branches, and listing branches ‚Ä
 
 ---
 
+## Install
+```bash
+git clone git@github.com:your-org/chronicle-toolbox.git
+cd chronicle-toolbox
+mvnw clean package
+```
+
+You can then run `clt` to see the available commands.
+
+---
 ## CLI Commands
 
 ### Backport (`backport` / `bp`)

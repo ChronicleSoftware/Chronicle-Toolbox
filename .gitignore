@@ -7,9 +7,9 @@ release.properties
 .flattened-pom.xml
 
 # Testing Scripts
-reset-git-dep-test.sh
+multi-commit-test.sh
 reset-git-dep.sh
-reset_playground.sh
+cherry-pick-test.sh
 cvb-test-repo.sh
 
 # Eclipse
