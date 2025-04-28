@@ -25,8 +25,8 @@ Supports backporting commits, creating version branches, and listing branches â€
 
 ## Install
 ```bash
-git clone git@github.com:your-org/chronicle-toolbox.git
-cd chronicle-toolbox
+git clone git@github.com:ChronicleSoftware/Chronicle-Toolbox.git
+cd Chronicle-Toolbox
 mvnw clean package
 ```
 
