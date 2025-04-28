@@ -34,7 +34,7 @@ public class CreateVerBranchCommand implements Runnable {
             description = "Name of the branch to create (e.g. release/v1.2.0).")
     String branchName;
 
-    @Option(names = {"-B", "--base-branch"},
+    @Option(names = {"-b", "--base-branch"},
             description = "Local base branch to create from (defaults to each repo's current branch).")
     String baseBranch;
 
@@ -77,7 +77,6 @@ public class CreateVerBranchCommand implements Runnable {
                     LOGGER.infof("  Using current branch as base: %s", startPoint);
                 } else {
                     startPoint = baseBranch;
-                    GitUtils.checkoutBranch(git, startPoint);
                 }
 
                 GitUtils.createBranch(git, branchName, startPoint);
