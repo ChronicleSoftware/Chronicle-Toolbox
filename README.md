@@ -13,7 +13,7 @@ Supports backporting commits, creating version branches, and listing branches â€
 - **Create Version Branch**: Create a new branch across multiple repositories, configured via a YAML file.
 - **List Branches**: List all local Git branches in the current repository so you know what clt can see.
 
-There are also some testing scripts that create repos in /Downloads/ to mess with
+- There are also some testing scripts that create repos in /Downloads/ to mess with
 ---
 
 ## Requirements
