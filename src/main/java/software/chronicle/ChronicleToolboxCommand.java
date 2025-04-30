@@ -2,16 +2,14 @@ package software.chronicle;
 
 import io.quarkus.picocli.runtime.annotations.TopCommand;
 import picocli.CommandLine;
-import software.chronicle.commands.BackportCommand;
-import software.chronicle.commands.CreateVerBranchCommand;
-import software.chronicle.commands.FeatureBranchCommand;
-import software.chronicle.commands.ListBranchesCommand;
+import software.chronicle.commands.*;
 
 @TopCommand
 @CommandLine.Command(name = "clt", subcommands = {
         BackportCommand.class,
         CreateVerBranchCommand.class,
         FeatureBranchCommand.class,
-        ListBranchesCommand.class
+        ListBranchesCommand.class,
+        RebaseAllCommand.class
 })
 public class ChronicleToolboxCommand {}

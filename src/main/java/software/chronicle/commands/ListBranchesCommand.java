@@ -5,14 +5,15 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.jboss.logging.Logger;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import jakarta.inject.Singleton;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
-@CommandLine.Command(
+@Command(
         name = "list-branches",
         aliases = {"ls"},
         description = "Lists available Git branches, optionally filtered by prefix."
@@ -27,7 +28,8 @@ public class ListBranchesCommand implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(ListBranchesCommand.class);
 
-    @CommandLine.Option(names = "--filter", description = "Filter branches by name (e.g., release/)")
+    @Option(names = "--filter",
+            description = "Filter branches by name (e.g., release/)")
     String filter;
 
     @Override

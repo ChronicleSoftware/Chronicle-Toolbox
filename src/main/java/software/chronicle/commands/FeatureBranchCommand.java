@@ -27,21 +27,29 @@ public class FeatureBranchCommand implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(FeatureBranchCommand.class);
 
-    @Option(names = {"-n", "--branch-name"},
-            required = true,
-            description = "Name of the feature (the new branch will be feature/<name>).")
+    @Option(names = {"-n", "--new-branch"},
+            description = "Name of the feature (the new branch will be feature/<name>).",
+            required = true)
     String branchName;
 
     @Option(names = {"-b", "--base-branch"},
             description = "Local base branch to create from (defaults to current HEAD).")
     String baseBranch;
 
+    @Option(names = "--force",
+            description = "Skip clean‐state check and proceed even if there are uncommitted changes.")
+    boolean force;
+
     @Override
     public void run() {
         LOGGER.infof("Starting feature-branch creation: feature/%s", branchName);
         try (Git git = new Git(GitUtils.loadCurrentRepository())) {
             // 1) Ensure clean working directory
-            GitUtils.ensureCleanState(git);
+            if (!force) {
+                GitUtils.ensureCleanState(git);
+            } else {
+                LOGGER.warn("Skipping clean‐state check (--force)");
+            }
 
             Repository repo = git.getRepository();
 
@@ -50,7 +58,6 @@ public class FeatureBranchCommand implements Runnable {
             if (baseBranch != null && !baseBranch.isBlank()) {
                 startPoint = baseBranch;
                 LOGGER.infof("Checking out base branch: %s", startPoint);
-                GitUtils.checkoutBranch(git, startPoint);
             } else {
                 startPoint = repo.getBranch();
                 LOGGER.infof("Using current HEAD branch as base: %s", startPoint);
@@ -62,11 +69,11 @@ public class FeatureBranchCommand implements Runnable {
             LOGGER.infof("Feature branch '%s' created from '%s'", featureBranch, startPoint);
 
         } catch (IOException e) {
-            LOGGER.errorf("I/O error loading repository: %s", e.getMessage());
+            LOGGER.errorf("I/O error loading repository: \n%s", e.getMessage());
         } catch (GitAPIException e) {
-            LOGGER.errorf("Git operation failed: %s", e.getMessage());
+            LOGGER.errorf("Git operation failed: \n%s", e.getMessage());
         } catch (IllegalStateException e) {
-            LOGGER.errorf("Unsafe working directory: %s", e.getMessage());
+            LOGGER.errorf("Unsafe working directory: \n%s", e.getMessage());
         }
     }
 }

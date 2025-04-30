@@ -1,7 +1,6 @@
 package software.chronicle.commands;
 
 import org.eclipse.jgit.api.errors.MultipleParentsNotAllowedException;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -43,20 +42,27 @@ public class BackportCommand implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(BackportCommand.class);
 
-    @Option(names = {"-s", "--source"}, description = "Source branch, tag, or commit", required = true)
+    @Option(names = {"-s", "--source"},
+            description = "Source branch, tag, or commit",
+            required = true)
     String sourceBranch;
 
-    @Option(names = {"-t", "--target"}, description = "Target branch", required = true)
+    @Option(names = {"-t", "--target"},
+            description = "Target branch",
+            required = true)
     String targetBranch;
 
-    @Option(names = {"-n", "--name"}, description = "Name of the new backport branch")
+    @Option(names = {"-n", "--new-branch"},
+            description = "Name of the new backport branch")
     String backportBranchName;
 
-    @Option(names = {"-c", "--commit"}, split = ",",
+    @Option(names = {"-m", "--commits"},
+            split = ",",
             description = "Comma-separated commit hashes to backport")
     List<String> commitHashes;
 
-    @CommandLine.Option(names = "--no-auto-deps", description = "Disable automatic dependency detection and use only specified commits.")
+    @Option(names = "--no-auto-deps",
+            description = "Disable automatic dependency detection and use only specified commits.")
     boolean noAutoDeps = false;
 
     @Override

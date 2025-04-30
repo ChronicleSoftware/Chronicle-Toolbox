@@ -29,9 +29,9 @@ public class CreateVerBranchCommand implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(CreateVerBranchCommand.class.getName());
 
-    @Option(names = {"-n", "--branch-name"},
-            required = true,
-            description = "Name of the branch to create (e.g. release/v1.2.0).")
+    @Option(names = {"-n", "--new-branch"},
+            description = "Name of the branch to create (e.g. release/v1.2.0).",
+            required = true)
     String branchName;
 
     @Option(names = {"-b", "--base-branch"},
@@ -39,9 +39,13 @@ public class CreateVerBranchCommand implements Runnable {
     String baseBranch;
 
     @Option(names = {"-c", "--config-file"},
-            defaultValue = "repos.yaml",
-            description = "Path to repos config file (YAML format).")
+            description = "Path to repos config file (YAML format).",
+            defaultValue = "cvb-repos.yaml")
     File configFile;
+
+    @Option(names = {"--force"},
+            description = "Skip clean‐state check and proceed even if there are uncommitted changes.")
+    boolean force;
 
     @Override
     public void run() {
@@ -63,8 +67,13 @@ public class CreateVerBranchCommand implements Runnable {
             LOGGER.infof("Processing repo: %s", path);
             try (Git git = GitUtils.openRepository(dir)) {
                 try {
-                    // 3) Validate clean workspace and state
-                    GitUtils.ensureCleanState(git);
+                    // 3) Validate clean workspace and state unless forced
+                    if (!force) {
+                        GitUtils.ensureCleanState(git);
+                    } else {
+                        LOGGER.warn("Skipping clean‐state check (--force)");
+                    }
+
                 } catch (IllegalStateException | GitAPIException e) {
                     LOGGER.errorf("Repository not safe to modify: %s — %s", path, e.getMessage());
                     continue;

@@ -16,6 +16,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.logging.Logger;
 
 /**
@@ -45,7 +46,6 @@ public class GitUtils {
      * @param configFile YAML file defining repo paths.
      * @return List of repository directory paths.
      */
-    @SuppressWarnings("unchecked")
     public static List<String> loadReposFromFile(File configFile) {
         if (!configFile.exists()) {
             LOGGER.severe("Config file not found: " + configFile.getAbsolutePath());
@@ -55,15 +55,34 @@ public class GitUtils {
             Yaml yaml = new Yaml();
             Map<String, Object> cfg = yaml.load(fis);
             Object list = cfg.getOrDefault("repos", cfg.get("repositories"));
-            if (!(list instanceof List)) {
+            if (!(list instanceof List<?> rawList)) {
                 LOGGER.severe("Missing or invalid 'repos' list in config file.");
                 return List.of();
             }
-            return (List<String>) list;
+
+            // Ensure all paths are trimmed (removes \r, extra spaces, etc.)
+            return rawList.stream()
+                    .filter(Objects::nonNull)
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .map(String::trim)
+                    .map(GitUtils::normalizePath)  // ← this ensures compatibility
+                    .toList();
+
         } catch (IOException e) {
             LOGGER.severe("Failed to parse config file: " + e.getMessage());
             return List.of();
         }
+    }
+
+    public static String normalizePath(String path) {
+        // Convert Git Bash style "/c/Users/..." to Windows-style "C:/Users/..."
+        if (path.matches("^/[a-zA-Z]/.*")) {
+            path = path.replaceFirst("^/([a-zA-Z])/", "$1:/");
+        }
+
+        // Normalize to absolute path (cross-platform-safe)
+        return new File(path).getAbsolutePath();
     }
 
     /**
@@ -126,9 +145,10 @@ public class GitUtils {
                 || !status.getUntracked().isEmpty()) {
             throw new IllegalStateException(
                     "Working directory is not clean. " +
-                            "Please commit or stash changes before running this command. " +
-                            "Uncommitted: " + status.getUncommittedChanges() +
-                            ", Untracked: " + status.getUntracked()
+                            "Please commit or stash changes before running this command with," +
+                            "\n    git stash push -m <stash name>" +
+                            "\n  Uncommitted: " + status.getUncommittedChanges() +
+                            "\n  Untracked: " + status.getUntracked()
             );
         }
 

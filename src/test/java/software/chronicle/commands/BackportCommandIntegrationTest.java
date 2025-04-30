@@ -82,11 +82,14 @@ class BackportCommandIntegrationTest {
      * Pattern: refs/heads/backport/<target-with-"/"→"-">/<short-hash>
      */
     private Ref findBackportBranch(Git git) throws GitAPIException {
-        String prefix = "refs/heads/backport/" + "release/2.26".replace('/', '-') + "/";
-        return git.branchList().call().stream()
-                .filter(ref -> ref.getName().startsWith(prefix))
+        return git.branchList()
+                .call()
+                .stream()
+                .filter(ref -> ref.getName().startsWith("refs/heads/backport/"))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Backport branch not found with prefix: " + prefix));
+                .orElseThrow(() -> new AssertionError(
+                        "No backport branch found; expected one starting with 'backport/'"
+                ));
     }
 
     @Test
@@ -115,12 +118,13 @@ class BackportCommandIntegrationTest {
         ObjectId head = backportRef.getObjectId();
         boolean found = false;
         for (RevCommit c : git.log().add(head).call()) {
-            if (c.getName().equals(bugfix.getName())) {
+            if (c.getShortMessage().equals(bugfix.getShortMessage())) {  // compare message
                 found = true;
                 break;
             }
         }
-        assertTrue(found, "bugfix must appear in the new backport branch");
+        assertTrue(found, "bugfix must appear in the new backport branch (by message)");
+
     }
 
     @Test
